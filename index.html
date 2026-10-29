@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>算法可视化实验室</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0b0f1a;
+    --panel: #131a2a;
+    --line: #23304a;
+    --text: #e6edf7;
+    --muted: #7d8ca8;
+    --accent: #4fd1c5;
+    --accent2: #7c9cff;
+  }
+  body {
+    background: radial-gradient(1200px 600px at 20% -10%, #17233d 0%, var(--bg) 60%);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    min-height: 100vh;
+    padding: 24px 20px 48px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  header { margin-bottom: 22px; }
+  h1 { font-size: 26px; letter-spacing: .5px; font-weight: 650; }
+  h1 span { color: var(--accent); }
+  .sub { color: var(--muted); font-size: 13px; margin-top: 6px; }
+
+  .tabs { display: flex; gap: 8px; margin: 20px 0 16px; }
+  .tab {
+    padding: 8px 18px; border-radius: 999px; cursor: pointer;
+    background: var(--panel); border: 1px solid var(--line);
+    font-size: 14px; color: var(--muted); transition: .18s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { background: linear-gradient(135deg, #1d4d4a, #24406e); color: #fff; border-color: transparent; }
+
+  .bar {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 12px 14px; margin-bottom: 14px;
+  }
+  select, button {
+    background: #1a2438; color: var(--text); border: 1px solid var(--line);
+    padding: 7px 14px; border-radius: 8px; font-size: 13px; cursor: pointer;
+    font-family: inherit; transition: .15s;
+  }
+  select:hover, button:hover { border-color: var(--accent); }
+  button.primary { background: linear-gradient(135deg, #2a9d8f, #2f6feb); border: none; font-weight: 600; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 7px; }
+  input[type=range] { width: 110px; accent-color: var(--accent); }
+  .spacer { flex: 1; }
+  .stat { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .stat b { color: var(--accent); font-weight: 600; }
+
+  canvas {
+    width: 100%; display: block; background: #0e1524;
+    border: 1px solid var(--line); border-radius: 12px; cursor: crosshair;
+  }
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; font-size: 12px; color: var(--muted); }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+  .hidden { display: none; }
+  .tip { font-size: 12px; color: var(--muted); margin-top: 10px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>算法<span>可视化</span>实验室</h1>
+    <div class="sub">纯前端 · 无后端 · 拖拽即可交互</div>
+  </header>
+
+  <div class="tabs">
+    <div class="tab active" data-view="path">路径搜索</div>
+    <div class="tab" data-view="sort">排序</div>
+  </div>
+
+  <!-- 路径搜索 -->
+  <div id="view-path">
+    <div class="bar">
+      <select id="p-algo">
+        <option value="bfs">BFS 广度优先</option>
+        <option value="dfs">DFS 深度优先</option>
+        <option value="dijkstra">Dijkstra</option>
+        <option value="astar" selected>A* 启发式</option>
+      </select>
+      <button class="primary" id="p-run">开始搜索</button>
+      <button id="p-maze">随机迷宫</button>
+      <button id="p-clear">清空</button>
+      <label>速度 <input type="range" id="p-speed" min="1" max="60" value="25"></label>
+      <div class="spacer"></div>
+      <div class="stat">已探索 <b id="p-visited">0</b> · 路径 <b id="p-len">0</b></div>
+    </div>
+    <canvas id="p-canvas"></canvas>
+    <div class="legend">
+      <span><i class="dot" style="background:#3b4a6b"></i>墙</span>
+      <span><i class="dot" style="background:#1e4d5c"></i>已探索</span>
+      <span><i class="dot" style="background:#3f7fa6"></i>待探索队列</span>
+      <span><i class="dot" style="background:#f5c451"></i>最短路径</span>
+      <span><i class="dot" style="background:#4fd1c5"></i>起点</span>
+      <span><i class="dot" style="background:#ff6b81"></i>终点</span>
+    </div>
+    <div class="tip">左键拖拽画墙 / 右键擦除 · 拖动绿色方块移动起点，红色方块移动终点 · 对比 BFS 与 A* 的探索范围差异最直观</div>
+  </div>
+
+  <!-- 排序 -->
+  <div id="view-sort" class="hidden">
+    <div class="bar">
+      <select id="s-algo">
+        <option value="quick" selected>快速排序</option>
+        <option value="merge">归并排序</option>
+        <option value="heap">堆排序</option>
+        <option value="bubble">冒泡排序</option>
+      </select>
+      <button class="primary" id="s-run">开始排序</button>
+      <button id="s-shuffle">打乱</button>
+      <label>数量 <input type="range" id="s-size" min="20" max="160" value="70"></label>
+      <label>速度 <input type="range" id="s-speed" min="1" max="60" value="30"></label>
+      <div class="spacer"></div>
+      <div class="stat">比较 <b id="s-cmp">0</b> · 交换/写入 <b id="s-swap">0</b></div>
+    </div>
+    <canvas id="s-canvas"></canvas>
+    <div class="legend">
+      <span><i class="dot" style="background:#7c9cff"></i>默认</span>
+      <span><i class="dot" style="background:#f5c451"></i>正在比较</span>
+      <span><i class="dot" style="background:#ff6b81"></i>正在写入</span>
+      <span><i class="dot" style="background:#4fd1c5"></i>已就位</span>
+    </div>
+    <div class="tip">柱子高度即数值大小 · 冒泡的 O(n²) 与快排的 O(n log n) 在同一数据量下差距肉眼可见</div>
+  </div>
+</div>
+
+<script>
+/* ---------- 通用 ---------- */
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+document.querySelectorAll('.tab').forEach(t => t.onclick = () => {
+  document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+  t.classList.add('active');
+  const isPath = t.dataset.view === 'path';
+  $('view-path').classList.toggle('hidden', !isPath);
+  $('view-sort').classList.toggle('hidden', isPath);
+  if (isPath) fitPath(); else fitSort();
+});
+
+/* ---------- 路径搜索 ---------- */
+const pc = $('p-canvas'), pctx = pc.getContext('2d');
+const COLS = 48, ROWS = 26;
+let cell = 20, grid = [], start = {c:4,r:13}, goal = {c:43,r:13};
+let visited = [], frontier = [], path = [], running = false;
+let dragMode = null, dragging = null;
+
+function makeGrid() {
+  grid = Array.from({length: ROWS}, () => new Array(COLS).fill(0));
+}
+function fitPath() {
+  const w = pc.parentElement.clientWidth;
+  cell = Math.max(10, Math.floor(w / COLS));
+  pc.width = COLS * cell; pc.height = ROWS * cell;
+  pc.style.height = (ROWS * cell) + 'px';
+  drawPath();
+}
+function key(n) { return n.c + ',' + n.r; }
+function inb(c, r) { return c >= 0 && c < COLS && r >= 0 && r < ROWS; }
+
+function drawPath() {
+  pctx.clearRect(0, 0, pc.width, pc.height);
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    if (grid[r][c]) { pctx.fillStyle = '#3b4a6b'; pctx.fillRect(c*cell, r*cell, cell-1, cell-1); }
+  }
+  for (const k of visited) {
+    const [c, r] = k.split(',').map(Number);
+    pctx.fillStyle = '#1e4d5c'; pctx.fillRect(c*cell, r*cell, cell-1, cell-1);
+  }
+  for (const k of frontier) {
+    const [c, r] = k.split(',').map(Number);
+    pctx.fillStyle = '#3f7fa6'; pctx.fillRect(c*cell, r*cell, cell-1, cell-1);
+  }
+  for (const p of path) {
+    pctx.fillStyle = '#f5c451'; pctx.fillRect(p.c*cell, p.r*cell, cell-1, cell-1);
+  }
+  pctx.fillStyle = '#4fd1c5'; pctx.fillRect(start.c*cell, start.r*cell, cell-1, cell-1);
+  pctx.fillStyle = '#ff6b81'; pctx.fillRect(goal.c*cell, goal.r*cell, cell-1, cell-1);
+}
+
+function neighbors(n) {
+  const out = [];
+  const dirs = [[1,0],[0,1],[-1,0],[0,-1]];
+  for (const [dc, dr] of dirs) {
+    const c = n.c+dc, r = n.r+dr;
+    if (inb(c, r) && !grid[r][c]) out.push({c, r});
+  }
+  return out;
+}
+function h(n) { return Math.abs(n.c-goal.c) + Math.abs(n.r-goal.r); }
+
+function* searchGen(algo) {
+  const seen = new Set(), prev = new Map();
+  let q = [start];
+  seen.add(key(start));
+  const push = (arr, item, prio) => {
+    if (prio === undefined) arr.push(item);
+    else { arr.push({...item, prio}); arr.sort((a,b) => a.prio - b.prio); }
+  };
+  const pop = arr => arr.shift();
+
+  let gScore = new Map([[key(start), 0]]);
+
+  while (q.length) {
+    const cur = pop(q);
+    frontier = q.map(n => key({c:n.c, r:n.r}));
+    if (cur.c === goal.c && cur.r === goal.r) break;
+    visited.push(key(cur));
+    if (visited.length % 1 === 0) yield;
+
+    for (const nb of neighbors(cur)) {
+      const k = key(nb);
+      if (seen.has(k)) continue;
+      seen.add(k); prev.set(k, cur);
+      let prio;
+      if (algo === 'bfs') prio = undefined;
+      else if (algo === 'dfs') prio = 0;
+      else if (algo === 'dijkstra') prio = (gScore.get(key(cur)) || 0) + 1;
+      else prio = (gScore.get(key(cur)) || 0) + 1 + h(nb);
+      gScore.set(k, (gScore.get(key(cur)) || 0) + 1);
+      if (algo === 'dfs') q.unshift(nb);
+      else push(q, nb, prio);
+    }
+  }
+  // 回溯路径
+  let cur = goal, p = [];
+  while (prev.has(key(cur))) { p.push(cur); cur = prev.get(key(cur)); }
+  p.push(start); p.reverse();
+  path = p;
+}
+
+async function runPath() {
+  if (running) return;
+  running = true; $('p-run').disabled = true;
+  visited = []; frontier = []; path = [];
+  const algo = $('p-algo').value;
+  const gen = searchGen(algo);
+  const delay = Math.max(0, 200 - $('p-speed').value * 4);
+  while (true) {
+    const { value, done } = gen.next();
+    if (done) break;
+    $('p-visited').textContent = visited.length;
+    drawPath();
+    if (delay) await sleep(delay);
+  }
+  for (let i = 0; i < path.length; i++) {
+    drawPath();
+    await sleep(12);
+  }
+  $('p-visited').textContent = visited.length;
+  $('p-len').textContent = path.length ? path.length - 1 : 0;
+  drawPath();
+  running = false; $('p-run').disabled = false;
+}
+
+function cellFromEvent(e) {
+  const rect = pc.getBoundingClientRect();
+  const x = (e.clientX - rect.left) * (pc.width / rect.width);
+  const y = (e.clientY - rect.top) * (pc.height / rect.height);
+  return { c: Math.floor(x / cell), r: Math.floor(y / cell) };
+}
+pc.addEventListener('contextmenu', e => e.preventDefault());
+pc.addEventListener('mousedown', e => {
+  const { c, r } = cellFromEvent(e);
+  if (!inb(c, r)) return;
+  if (c === start.c && r === start.r) dragging = 'start';
+  else if (c === goal.c && r === goal.r) dragging = 'goal';
+  else { dragMode = e.button === 2 ? 0 : 1; grid[r][c] = dragMode; drawPath(); }
+});
+pc.addEventListener('mousemove', e => {
+  const { c, r } = cellFromEvent(e);
+  if (!inb(c, r)) return;
+  if (dragging === 'start') { if (!grid[r][c] && !(c===goal.c&&r===goal.r)) { start = {c,r}; drawPath(); } }
+  else if (dragging === 'goal') { if (!grid[r][c] && !(c===start.c&&r===start.r)) { goal = {c,r}; drawPath(); } }
+  else if (dragMode !== null && !(c===start.c&&r===start.r) && !(c===goal.c&&r===goal.r)) {
+    grid[r][c] = dragMode; drawPath();
+  }
+});
+window.addEventListener('mouseup', () => { dragMode = null; dragging = null; });
+
+function randomMaze() {
+  makeGrid();
+  // 递归分割
+  function divide(x, y, w, h, ori) {
+    if (w < 5 || h < 5) return;
+    const horiz = ori === 'h';
+    const wx = x + (horiz ? 0 : 2 + Math.floor(Math.random() * (w - 4)));
+    const wy = y + (horiz ? 2 + Math.floor(Math.random() * (h - 4)) : 0);
+    const px = x + (horiz ? Math.floor(Math.random() * w) : wx);
+    const py = y + (horiz ? wy : Math.floor(Math.random() * h));
+    const dx = horiz ? 1 : 0, dy = horiz ? 0 : 1;
+    const len = horiz ? w : h;
+    for (let i = 0; i < len; i++) {
+      const cx = wx + dx*i, cy = wy + dy*i;
+      if (cx === px && cy === py) continue;
+      if (inb(cx, cy)) grid[cy][cx] = 1;
+    }
+    if (horiz) { divide(x, y, w, wy-y, 'h'); divide(x, wy+1, w, y+h-wy-1, 'h'); }
+    else { divide(x, y, wx-x, h, 'h'); divide(wx+1, y, x+w-wx-1, h, 'h'); }
+  }
+  divide(0, 0, COLS, ROWS, Math.random() > .5 ? 'h' : 'v');
+  start = {c:1, r:1}; goal = {c:COLS-2, r:ROWS-2};
+  grid[start.r][start.c] = 0; grid[goal.r][goal.c] = 0;
+  visited = []; frontier = []; path = [];
+  $('p-visited').textContent = 0; $('p-len').textContent = 0;
+  drawPath();
+}
+
+/* ---------- 排序 ---------- */
+const sc = $('s-canvas'), sctx = sc.getContext('2d');
+let arr = [], cmpCount = 0, swCount = 0, sorting = false;
+const sortedSet = new Set();
+
+function fitSort() {
+  const w = sc.parentElement.clientWidth;
+  sc.width = w; sc.height = 320;
+  sc.style.height = '320px';
+  drawSort();
+}
+function shuffleArr() {
+  const n = +$('s-size').value;
+  arr = Array.from({length: n}, (_, i) => i + 1);
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  cmpCount = swCount = 0; sortedSet.clear();
+  $('s-cmp').textContent = 0; $('s-swap').textContent = 0;
+  drawSort();
+}
+function drawSort(hl = {}) {
+  const w = sc.width, h = sc.height;
+  sctx.clearRect(0, 0, w, h);
+  const n = arr.length, bw = w / n, max = n;
+  for (let i = 0; i < n; i++) {
+    const bh = (arr[i] / max) * (h - 20);
+    let color = '#7c9cff';
+    if (hl.sorted && hl.sorted.has(i)) color = '#4fd1c5';
+    if (hl.cmp && (hl.cmp[0] === i || hl.cmp[1] === i)) color = '#f5c451';
+    if (hl.act && hl.act.includes(i)) color = '#ff6b81';
+    sctx.fillStyle = color;
+    sctx.fillRect(i * bw + .5, h - bh, Math.max(1, bw - 1), bh);
+  }
+}
+
+function* quick(a, lo, hi) {
+  if (lo >= hi) { if (lo === hi) sortedSet.add(lo); return; }
+  const p = a[hi]; let i = lo;
+  for (let j = lo; j < hi; j++) {
+    cmpCount++;
+    yield { cmp: [j, hi], act: [i] };
+    if (a[j] < p) { [a[i], a[j]] = [a[j], a[i]]; swCount++; i++; yield { act: [i-1, j] }; }
+  }
+  [a[i], a[hi]] = [a[hi], a[i]]; swCount++;
+  sortedSet.add(i);
+  yield { act: [i, hi] };
+  yield* quick(a, lo, i - 1);
+  yield* quick(a, i + 1, hi);
+}
+function* merge(a, lo, hi) {
+  if (lo >= hi) return;
+  const mid = (lo + hi) >> 1;
+  yield* merge(a, lo, mid);
+  yield* merge(a, mid + 1, hi);
+  const tmp = [];
+  let i = lo, j = mid + 1;
+  while (i <= mid && j <= hi) {
+    cmpCount++;
+    yield { cmp: [i, j] };
+    tmp.push(a[i] <= a[j] ? a[i++] : a[j++]);
+  }
+  while (i <= mid) tmp.push(a[i++]);
+  while (j <= hi) tmp.push(a[j++]);
+  for (let k = 0; k < tmp.length; k++) { a[lo + k] = tmp[k]; swCount++; if (lo===0&&hi===a.length-1) sortedSet.add(lo+k); yield { act: [lo + k] }; }
+}
+function* heap(a) {
+  const n = a.length;
+  function* sink(i, size) {
+    while (true) {
+      let l = 2*i+1, r = 2*i+2, m = i;
+      if (l < size) { cmpCount++; yield { cmp: [l, m] }; if (a[l] > a[m]) m = l; }
+      if (r < size) { cmpCount++; yield { cmp: [r, m] }; if (a[r] > a[m]) m = r; }
+      if (m === i) break;
+      [a[i], a[m]] = [a[m], a[i]]; swCount++;
+      yield { act: [i, m] };
+      i = m;
+    }
+  }
+  for (let i = (n >> 1) - 1; i >= 0; i--) yield* sink(i, n);
+  for (let size = n - 1; size > 0; size--) {
+    [a[0], a[size]] = [a[size], a[0]]; swCount++;
+    sortedSet.add(size);
+    yield { act: [0, size] };
+    yield* sink(0, size);
+  }
+  sortedSet.add(0);
+}
+function* bubble(a) {
+  const n = a.length;
+  for (let i = 0; i < n - 1; i++) {
+    for (let j = 0; j < n - 1 - i; j++) {
+      cmpCount++;
+      yield { cmp: [j, j+1] };
+      if (a[j] > a[j+1]) { [a[j], a[j+1]] = [a[j+1], a[j]]; swCount++; yield { act: [j, j+1] }; }
+    }
+    sortedSet.add(n - 1 - i);
+  }
+  sortedSet.add(0);
+}
+
+async function runSort() {
+  if (sorting) return;
+  sorting = true; $('s-run').disabled = true;
+  cmpCount = swCount = 0; sortedSet.clear();
+  const a = arr, algo = $('s-algo').value;
+  const gen = algo === 'quick' ? quick(a, 0, a.length-1)
+            : algo === 'merge' ? merge(a, 0, a.length-1)
+            : algo === 'heap' ? heap(a)
+            : bubble(a);
+  const delay = Math.max(0, 160 - $('s-speed').value * 3);
+  while (true) {
+    const { value, done } = gen.next();
+    if (done) break;
+    drawSort({ ...(value || {}), sorted: sortedSet });
+    $('s-cmp').textContent = cmpCount;
+    $('s-swap').textContent = swCount;
+    if (delay) await sleep(delay);
+  }
+  for (let i = 0; i < a.length; i++) { sortedSet.add(i); drawSort({ sorted: sortedSet }); await sleep(4); }
+  $('s-cmp').textContent = cmpCount; $('s-swap').textContent = swCount;
+  sorting = false; $('s-run').disabled = false;
+}
+
+/* ---------- 绑定 ---------- */
+$('p-run').onclick = runPath;
+$('p-maze').onclick = randomMaze;
+$('p-clear').onclick = () => { makeGrid(); visited=[]; frontier=[]; path=[]; $('p-visited').textContent=0; $('p-len').textContent=0; drawPath(); };
+$('s-run').onclick = runSort;
+$('s-shuffle').onclick = shuffleArr;
+$('s-size').oninput = shuffleArr;
+window.addEventListener('resize', () => { fitPath(); fitSort(); });
+
+makeGrid();
+fitPath();
+shuffleArr();
+</script>
+</body>
+</html>
